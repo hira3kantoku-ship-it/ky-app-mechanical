@@ -126,16 +126,36 @@ function buildTradeSelect() {
     opt.textContent = trade.name;
     sel.appendChild(opt);
   });
+  const other = document.createElement('option');
+  other.value = 'other';
+  other.textContent = 'その他（手入力）';
+  sel.appendChild(other);
+}
+
+function onTradeCustomInput() {
+  // 入力値は collectState / validateStep で参照するだけでよい
 }
 
 function onTradeChange() {
   const idx = document.getElementById('field-trade').value;
+  const customInput = document.getElementById('field-trade-custom');
   const container = document.getElementById('tools-checkbox-container');
   const section = document.getElementById('tools-section');
   container.innerHTML = '';
 
-  if (idx === '') { section.style.display = 'none'; return; }
+  if (idx === '') {
+    customInput.style.display = 'none';
+    section.style.display = 'none';
+    return;
+  }
 
+  if (idx === 'other') {
+    customInput.style.display = 'block';
+    section.style.display = 'none';
+    return;
+  }
+
+  customInput.style.display = 'none';
   const tools = ['脚立・はしご', ...CONSTRUCTION_TRADES[parseInt(idx)].tools];
   section.style.display = 'block';
 
@@ -164,7 +184,9 @@ function analyzeDangers(text) {
 
 async function runAIAnalysis() {
   const tradeIdx = document.getElementById('field-trade')?.value;
-  const tradeName = tradeIdx !== '' ? CONSTRUCTION_TRADES[parseInt(tradeIdx)]?.name || '' : '';
+  const tradeName = tradeIdx === 'other'
+    ? (document.getElementById('field-trade-custom')?.value.trim() || '')
+    : (tradeIdx !== '' ? CONSTRUCTION_TRADES[parseInt(tradeIdx)]?.name || '' : '');
   const workInput = document.getElementById('field-work-input').value.trim();
   const tools = Array.from(document.querySelectorAll('#tools-checkbox-container input[type=checkbox]:checked')).map(cb => cb.value);
   const otherTool = document.getElementById('field-tool-other')?.value.trim();
@@ -415,6 +437,9 @@ function validateStep(step) {
     const trade = document.getElementById('field-trade')?.value;
     const work = document.getElementById('field-work-input')?.value.trim();
     if (!trade) { showToast('工種を選択してください'); return false; }
+    if (trade === 'other' && !document.getElementById('field-trade-custom')?.value.trim()) {
+      showToast('工種を入力してください'); return false;
+    }
     if (!work) { showToast('作業内容を入力してください'); return false; }
   }
 
@@ -436,7 +461,9 @@ function collectState() {
   state.workerCount = parseInt(document.getElementById('field-workers').value) || 1;
 
   const tradeIdx = document.getElementById('field-trade')?.value;
-  const tradeName = tradeIdx !== '' ? CONSTRUCTION_TRADES[parseInt(tradeIdx)]?.name || '' : '';
+  const tradeName = tradeIdx === 'other'
+    ? (document.getElementById('field-trade-custom')?.value.trim() || '')
+    : (tradeIdx !== '' ? CONSTRUCTION_TRADES[parseInt(tradeIdx)]?.name || '' : '');
   const workText = document.getElementById('field-work-input')?.value.trim() || '';
   const selectedTools = Array.from(document.querySelectorAll('#tools-checkbox-container input[type=checkbox]:checked'))
     .map(cb => cb.value);
@@ -707,6 +734,8 @@ function resetApp() {
   if (wi) wi.value = '';
   const ft = document.getElementById('field-trade');
   if (ft) ft.value = '';
+  const ftc = document.getElementById('field-trade-custom');
+  if (ftc) { ftc.value = ''; ftc.style.display = 'none'; }
   const fto = document.getElementById('field-tool-other');
   if (fto) fto.value = '';
   document.getElementById('tools-section').style.display = 'none';
