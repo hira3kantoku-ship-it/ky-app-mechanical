@@ -131,7 +131,8 @@ export default async function handler(req, res) {
       }
       const newSites = sites.filter(s => !existingSites.includes(s));
       for (const site of newSites) {
-        const siteFolder = await getOrCreateFolder(token, site.slice(0, 50), folderId);
+        // 現場名フォルダはマイドライブ直下に作成
+        const siteFolder = await getOrCreateFolder(token, site.slice(0, 50), 'root');
         await getOrCreateFolder(token, 'KY記録', siteFolder);
       }
 

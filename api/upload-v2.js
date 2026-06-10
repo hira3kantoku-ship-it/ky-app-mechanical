@@ -27,12 +27,13 @@ export default async function handler(req, res) {
 
   try {
     const { pdfBase64, fileName, siteName, date } = req.body;
-    const { access_token, folderId } = await getAccessToken();
+    const { access_token } = await getAccessToken();
 
+    // 現場名フォルダはマイドライブ直下（共有用フォルダと同じ場所）に作る
     const safeSite = (siteName || '不明').slice(0, 50);
     const safeDate = date || new Date().toISOString().slice(0, 10);
 
-    const siteFolder = await getOrCreateFolder(access_token, safeSite, folderId);
+    const siteFolder = await getOrCreateFolder(access_token, safeSite, 'root');
     const kyFolder = await getOrCreateFolder(access_token, 'KY記録', siteFolder);
     const dateFolder = await getOrCreateFolder(access_token, safeDate, kyFolder);
 
