@@ -4,6 +4,7 @@
 
 const CONFIG_FILE_NAME = '_sites_config.json';
 const BASE_FOLDER_NAME = 'ＫＹ・新規';
+const CONFIG_FOLDER_NAME = '現場管理用設定ファイル（削除・編集禁止）';
 
 async function getAccessToken() {
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -133,8 +134,9 @@ export default async function handler(req, res) {
       const token = await getAccessToken();
       // GOOGLE_DRIVE_FOLDER_ID は参照先が壊れていたため使わず、
       // 「ＫＹ・新規」フォルダを名前で解決して使う（IDのズレが起きない）
-      const folderId = await getOrCreateFolder(token, BASE_FOLDER_NAME, 'root');
-      const fileId = await findConfigFile(token, folderId);
+      const baseFolder = await getOrCreateFolder(token, BASE_FOLDER_NAME, 'root');
+      const configFolder = await getOrCreateFolder(token, CONFIG_FOLDER_NAME, baseFolder);
+      const fileId = await findConfigFile(token, configFolder);
       if (!fileId) {
         // 設定ファイルが存在しない場合は空配列を返す（初期状態）
         return res.status(200).json({ sites: [] });
@@ -152,8 +154,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: '現場名リストが不正です' });
       }
       const token = await getAccessToken();
-      const folderId = await getOrCreateFolder(token, BASE_FOLDER_NAME, 'root');
-      const existingFileId = await findConfigFile(token, folderId);
+      const baseFolder = await getOrCreateFolder(token, BASE_FOLDER_NAME, 'root');
+      const configFolder = await getOrCreateFolder(token, CONFIG_FOLDER_NAME, baseFolder);
+      const existingFileId = await findConfigFile(token, configFolder);
 
       // 既存の現場名を取得（保存件数カウント用）
       let existingSites = [];
@@ -166,12 +169,12 @@ export default async function handler(req, res) {
       // 全現場名を対象にフォルダの有無を確認・補完する（getOrCreateFolderは既存なら作り直さない）
       for (const site of sites) {
         // 現場名フォルダは「ＫＹ・新規」フォルダの直下に作成
-        const siteFolder = await getOrCreateFolder(token, site.slice(0, 50), folderId);
+        const siteFolder = await getOrCreateFolder(token, site.slice(0, 50), baseFolder);
         await getOrCreateFolder(token, 'KY記録', siteFolder);
         await getOrCreateFolder(token, '新規入場者アンケート', siteFolder);
       }
 
-      await writeConfigFile(token, folderId, sites, existingFileId);
+      await writeConfigFile(token, configFolder, sites, existingFileId);
       return res.status(200).json({ success: true, count: sites.length, foldersCreated: newSites.length });
     }
 
