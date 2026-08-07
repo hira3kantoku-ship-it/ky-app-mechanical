@@ -61,10 +61,10 @@ async function getOrCreateFolder(token, name, parentId) {
   return folder.id;
 }
 
-async function writeConfigFile(token, folderId, sites, existingFileId) {
+async function writeConfigFileOnce(token, folderId, sites, targetFileId) {
   const content = JSON.stringify({ sites }, null, 2);
   const metadata = JSON.stringify(
-    existingFileId ? {} : { name: CONFIG_FILE_NAME, parents: [folderId] }
+    targetFileId ? {} : { name: CONFIG_FILE_NAME, parents: [folderId] }
   );
   const boundary = 'sites_boundary';
   const body = [
@@ -75,18 +75,29 @@ async function writeConfigFile(token, folderId, sites, existingFileId) {
     `\r\n--${boundary}--`,
   ].join('');
 
-  const url = existingFileId
-    ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
+  const url = targetFileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${targetFileId}?uploadType=multipart`
     : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
 
-  const res = await fetch(url, {
-    method: existingFileId ? 'PATCH' : 'POST',
+  return fetch(url, {
+    method: targetFileId ? 'PATCH' : 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': `multipart/related; boundary=${boundary}`,
     },
     body,
   });
+}
+
+async function writeConfigFile(token, folderId, sites, existingFileId) {
+  let res = await writeConfigFileOnce(token, folderId, sites, existingFileId);
+
+  // 参照先ファイルが見つからない（Drive上で削除済み等）場合は新規作成にフォールバック
+  if (!res.ok && existingFileId && res.status === 404) {
+    console.warn('sites config file missing, recreating:', existingFileId);
+    res = await writeConfigFileOnce(token, folderId, sites, null);
+  }
+
   if (!res.ok) throw new Error(`drive_write_error(${res.status}): ${await res.text()}`);
   return res.json();
 }
