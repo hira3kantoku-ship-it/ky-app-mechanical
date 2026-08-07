@@ -1,5 +1,7 @@
 // Vercel Function: PDF を Google Drive にアップロード
-// 環境変数: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN, GOOGLE_DRIVE_FOLDER_ID
+// 環境変数: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN
+
+const BASE_FOLDER_NAME = 'ＫＹ・新規';
 
 async function getAccessToken() {
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -14,7 +16,7 @@ async function getAccessToken() {
   });
   const data = await res.json();
   if (!data.access_token) throw new Error('token_error: ' + JSON.stringify(data));
-  return { access_token: data.access_token, folderId: process.env.GOOGLE_DRIVE_FOLDER_ID };
+  return { access_token: data.access_token };
 }
 
 export default async function handler(req, res) {
@@ -29,11 +31,12 @@ export default async function handler(req, res) {
     const { pdfBase64, fileName, siteName, date } = req.body;
     const { access_token } = await getAccessToken();
 
-    // 現場名フォルダはマイドライブ直下（共有用フォルダと同じ場所）に作る
+    // 現場名フォルダは「ＫＹ・新規」フォルダの直下に作る
     const safeSite = (siteName || '不明').slice(0, 50);
     const safeDate = date || new Date().toISOString().slice(0, 10);
 
-    const siteFolder = await getOrCreateFolder(access_token, safeSite, 'root');
+    const baseFolder = await getOrCreateFolder(access_token, BASE_FOLDER_NAME, 'root');
+    const siteFolder = await getOrCreateFolder(access_token, safeSite, baseFolder);
     const kyFolder = await getOrCreateFolder(access_token, 'KY記録', siteFolder);
     const dateFolder = await getOrCreateFolder(access_token, safeDate, kyFolder);
 

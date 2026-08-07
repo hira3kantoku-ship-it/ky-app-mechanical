@@ -3,6 +3,7 @@
 // POST /api/sites  → { password, sites } で更新
 
 const CONFIG_FILE_NAME = '_sites_config.json';
+const BASE_FOLDER_NAME = 'ＫＹ・新規';
 
 async function getAccessToken() {
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -127,13 +128,12 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // GOOGLE_DRIVE_FOLDER_ID は参照先が壊れていたため使わず、
-  // 現場名フォルダと同じマイドライブ直下（'root'）に保存する
-  const folderId = 'root';
-
   try {
     if (req.method === 'GET') {
       const token = await getAccessToken();
+      // GOOGLE_DRIVE_FOLDER_ID は参照先が壊れていたため使わず、
+      // 「ＫＹ・新規」フォルダを名前で解決して使う（IDのズレが起きない）
+      const folderId = await getOrCreateFolder(token, BASE_FOLDER_NAME, 'root');
       const fileId = await findConfigFile(token, folderId);
       if (!fileId) {
         // 設定ファイルが存在しない場合は空配列を返す（初期状態）
@@ -152,6 +152,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: '現場名リストが不正です' });
       }
       const token = await getAccessToken();
+      const folderId = await getOrCreateFolder(token, BASE_FOLDER_NAME, 'root');
       const existingFileId = await findConfigFile(token, folderId);
 
       // 既存の現場名を取得して新規追加分のフォルダを作成
@@ -162,8 +163,8 @@ export default async function handler(req, res) {
       }
       const newSites = sites.filter(s => !existingSites.includes(s));
       for (const site of newSites) {
-        // 現場名フォルダはマイドライブ直下に作成
-        const siteFolder = await getOrCreateFolder(token, site.slice(0, 50), 'root');
+        // 現場名フォルダは「ＫＹ・新規」フォルダの直下に作成
+        const siteFolder = await getOrCreateFolder(token, site.slice(0, 50), folderId);
         await getOrCreateFolder(token, 'KY記録', siteFolder);
       }
 
