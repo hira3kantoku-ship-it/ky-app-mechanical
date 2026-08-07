@@ -155,17 +155,20 @@ export default async function handler(req, res) {
       const folderId = await getOrCreateFolder(token, BASE_FOLDER_NAME, 'root');
       const existingFileId = await findConfigFile(token, folderId);
 
-      // 既存の現場名を取得して新規追加分のフォルダを作成
+      // 既存の現場名を取得（保存件数カウント用）
       let existingSites = [];
       if (existingFileId) {
         const config = await readConfigFile(token, existingFileId);
         existingSites = config.sites || [];
       }
       const newSites = sites.filter(s => !existingSites.includes(s));
-      for (const site of newSites) {
+
+      // 全現場名を対象にフォルダの有無を確認・補完する（getOrCreateFolderは既存なら作り直さない）
+      for (const site of sites) {
         // 現場名フォルダは「ＫＹ・新規」フォルダの直下に作成
         const siteFolder = await getOrCreateFolder(token, site.slice(0, 50), folderId);
         await getOrCreateFolder(token, 'KY記録', siteFolder);
+        await getOrCreateFolder(token, '新規入場者アンケート', siteFolder);
       }
 
       await writeConfigFile(token, folderId, sites, existingFileId);
