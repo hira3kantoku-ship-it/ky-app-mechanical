@@ -127,7 +127,9 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  // GOOGLE_DRIVE_FOLDER_ID は参照先が壊れていたため使わず、
+  // 現場名フォルダと同じマイドライブ直下（'root'）に保存する
+  const folderId = 'root';
 
   try {
     if (req.method === 'GET') {
