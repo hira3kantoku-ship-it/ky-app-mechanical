@@ -21,6 +21,19 @@ async function getAccessToken() {
 }
 
 async function findConfigFile(token, folderId) {
+  // modifiedTime 降順で取得し、複数存在する場合は最新のものを返す
+  const q = encodeURIComponent(
+    `name='${CONFIG_FILE_NAME}' and '${folderId}' in parents and trashed=false`
+  );
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)&orderBy=modifiedTime desc`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const { files } = await res.json();
+  return files && files.length > 0 ? files[0].id : null;
+}
+
+async function listAllConfigFileIds(token, folderId) {
   const q = encodeURIComponent(
     `name='${CONFIG_FILE_NAME}' and '${folderId}' in parents and trashed=false`
   );
@@ -29,18 +42,7 @@ async function findConfigFile(token, folderId) {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const { files } = await res.json();
-  if (!files || files.length === 0) return null;
-
-  // 検索結果には出るが実体が無い（Drive側のインデックス遅延・削除残骸等）ケースがあるため、
-  // 個別に存在確認してから返す。無ければ null（=新規作成扱い）にする。
-  const candidateId = files[0].id;
-  const checkRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${candidateId}?fields=id,trashed`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!checkRes.ok) return null;
-  const meta = await checkRes.json();
-  return meta.trashed ? null : candidateId;
+  return files ? files.map(f => f.id) : [];
 }
 
 async function readConfigFile(token, fileId) {
@@ -101,16 +103,21 @@ async function writeConfigFileOnce(token, folderId, sites, targetFileId) {
 }
 
 async function writeConfigFile(token, folderId, sites, existingFileId) {
-  let res = await writeConfigFileOnce(token, folderId, sites, existingFileId);
-
-  // 参照先ファイルが見つからない（Drive上で削除済み等）場合は新規作成にフォールバック
-  if (!res.ok && existingFileId && res.status === 404) {
-    console.warn('sites config file missing, recreating:', existingFileId);
-    res = await writeConfigFileOnce(token, folderId, sites, null);
-  }
-
+  // 既存ファイルへの更新(PATCH)は権限/参照切れで失敗することがあるため使わず、
+  // 常に新規ファイルとして作成する。古いファイルは作成成功後に削除を試みる（失敗は無視）。
+  const res = await writeConfigFileOnce(token, folderId, sites, null);
   if (!res.ok) throw new Error(`drive_write_error(${res.status}): ${await res.text()}`);
-  return res.json();
+  const result = await res.json();
+
+  const oldIds = (await listAllConfigFileIds(token, folderId)).filter(id => id !== result.id);
+  await Promise.all(oldIds.map(id =>
+    fetch(`https://www.googleapis.com/drive/v3/files/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {})
+  ));
+
+  return result;
 }
 
 export default async function handler(req, res) {
