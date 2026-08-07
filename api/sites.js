@@ -29,7 +29,18 @@ async function findConfigFile(token, folderId) {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const { files } = await res.json();
-  return files && files.length > 0 ? files[0].id : null;
+  if (!files || files.length === 0) return null;
+
+  // 検索結果には出るが実体が無い（Drive側のインデックス遅延・削除残骸等）ケースがあるため、
+  // 個別に存在確認してから返す。無ければ null（=新規作成扱い）にする。
+  const candidateId = files[0].id;
+  const checkRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${candidateId}?fields=id,trashed`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!checkRes.ok) return null;
+  const meta = await checkRes.json();
+  return meta.trashed ? null : candidateId;
 }
 
 async function readConfigFile(token, fileId) {
